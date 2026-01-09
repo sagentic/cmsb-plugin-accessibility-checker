@@ -1,0 +1,32 @@
+{
+    "enabled": true,
+    "scheduledScans": false,
+    "scanFrequency": "daily",
+    "lastScanDate": "",
+    "lastScanResults": {},
+    "checks": {
+        "missingAlt": true,
+        "poorAlt": true,
+        "minAltLength": 5,
+        "emptyLinks": true,
+        "genericLinkText": true,
+        "skippedHeadings": true,
+        "tablesWithoutHeaders": true,
+        "emptyButtons": true,
+        "missingFormLabels": true
+    },
+    "emailNotifications": false,
+    "notificationEmail": "",
+    "emailOnlyOnErrors": true,
+    "includeWarningsInTrigger": true,
+    "ignorePatterns": {
+        "altText": [
+            "decorative",
+            "spacer"
+        ],
+        "linkText": [],
+        "excludeTables": []
+    },
+    "enabledTables": [],
+    "logRetentionDays": 90
+}
