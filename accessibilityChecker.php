@@ -2,23 +2,32 @@
 /*
 Plugin Name: Accessibility Checker
 Description: Scans database content fields for WCAG 2.1 AA violations including missing alt text, empty links, generic link text, skipped headings, and more
-Version: 1.00
+Version: 1.01
 CMS Version Required: 3.50
 Author: Sagentic Web Design
 Author URI: https://www.sagentic.com
 */
 
-// Don't run from command-line
-if (inCLI()) {
-	return;
-}
-
 // Plugin constants
 $GLOBALS['ACCESSIBILITYCHECKER_PLUGIN'] = true;
-$GLOBALS['ACCESSIBILITYCHECKER_VERSION'] = '1.00';
+$GLOBALS['ACCESSIBILITYCHECKER_VERSION'] = '1.01';
 
 // Load helper functions
 require_once __DIR__ . '/accessibilityChecker_functions.php';
+
+// Register scheduled tasks (dispatched by webadmin/cron.php, which runs from the command line,
+// so these must be registered before the command-line check below).
+// Each site gets its own time between 0:00 and 4:59 so sites don't all scan at once;
+// the scan itself only runs when it's due by the Scan Frequency setting.
+$accessibilityChecker_slot = crc32(__DIR__) % 300;
+addCronJob('accessibilityChecker_scheduledScan', 'Accessibility Checker - Scheduled Scan', sprintf('%d %d * * *', $accessibilityChecker_slot % 60, intdiv($accessibilityChecker_slot, 60)));
+addCronJob('accessibilityChecker_cleanup', 'Accessibility Checker - Cleanup Old Results', sprintf('%d %d * * *', $accessibilityChecker_slot % 60, intdiv($accessibilityChecker_slot, 60) + 1));
+unset($accessibilityChecker_slot);
+
+// Don't register anything else from command-line
+if (inCLI()) {
+	return;
+}
 
 // Initialize plugin on admin login
 addAction('admin_postlogin', 'accessibilityChecker_pluginInit', null, -999);
@@ -47,13 +56,15 @@ function accessibilityChecker_pluginInit(): void
 
 /**
  * Process scheduled scan (called by daily cron)
+ * Returns a summary for the Background Tasks log
  */
-function accessibilityChecker_scheduledScan(): void
+function accessibilityChecker_scheduledScan(): string
 {
+	accessibilityChecker_createTablesIfNeeded();
 	$settings = accessibilityChecker_loadPluginSettings();
 
 	if (!$settings['scheduledScans']) {
-		return;
+		return 'Scheduled scans disabled';
 	}
 
 	$lastScan = $settings['lastScanDate'];
@@ -78,24 +89,30 @@ function accessibilityChecker_scheduledScan(): void
 		}
 	}
 
-	if ($shouldScan) {
-		$results = accessibilityChecker_runScheduledScan();
-		accessibilityChecker_sendNotificationEmail($results);
+	if (!$shouldScan) {
+		return "Not due (last scan {$lastScan}, {$frequency})";
 	}
+
+	$results = accessibilityChecker_runScheduledScan();
+	accessibilityChecker_sendNotificationEmail($results);
+
+	return sprintf('Scanned %d records in %d tables: %d errors, %d warnings',
+		$results['recordsScanned'], $results['tablesScanned'], $results['errors'], $results['warnings']);
 }
 
 /**
  * Cleanup old results based on retention setting
- * Called by daily cron
+ * Called by daily cron; returns a summary for the Background Tasks log
  */
-function accessibilityChecker_cleanup(): void
+function accessibilityChecker_cleanup(): string
 {
 	global $TABLE_PREFIX;
 
+	accessibilityChecker_createTablesIfNeeded();
 	$settings = accessibilityChecker_loadPluginSettings();
 	$retentionDays = $settings['logRetentionDays'];
 	if ($retentionDays <= 0) {
-		return; // Retention disabled
+		return 'Retention disabled'; // Retention disabled
 	}
 
 	$cutoffDate = date('Y-m-d H:i:s', strtotime("-{$retentionDays} days"));
@@ -107,8 +124,6 @@ function accessibilityChecker_cleanup(): void
 	// Clean up scans table
 	$query = "DELETE FROM `{$TABLE_PREFIX}_accessibilitychecker_scans` WHERE `createdDate` < ?";
 	mysqli()->query(mysql_escapef($query, $cutoffDate));
-}
 
-// Register cron jobs - runs once per day at midnight
-addCronJob('accessibilityChecker_scheduledScan', 'Accessibility Checker - Scheduled Scan', '0 0 * * *');
-addCronJob('accessibilityChecker_cleanup', 'Accessibility Checker - Cleanup Old Results', '0 1 * * *');
+	return "Removed results older than {$retentionDays} days";
+}

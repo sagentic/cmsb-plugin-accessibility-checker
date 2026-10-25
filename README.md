@@ -173,7 +173,7 @@ Settings are stored in `accessibilityChecker_settings.json` within the plugin di
 {
 	"enabled": true,
 	"scheduledScans": true,
-	"scanFrequency": "daily",
+	"scanFrequency": "weekly",
 	"checks": {
 		"missingAlt": true,
 		"poorAlt": true,
@@ -213,8 +213,10 @@ Stores scan history including dates, statistics, and duration.
 
 The plugin registers two cron jobs:
 
-1. **Scheduled Scan** - Runs at midnight based on configured frequency
-2. **Cleanup** - Runs at 1 AM daily to remove old results based on retention setting
+1. **Scheduled Scan** - Runs daily at a time unique to each site between 0:00 and 4:59, and scans when one is due by the Scan Frequency setting (default weekly)
+2. **Cleanup** - Runs an hour after the scheduled scan to remove old results based on retention setting
+
+Both are dispatched by `webadmin/cron.php`, which must be in the site's crontab. Check **Admin > Background Tasks** for their schedule and last run.
 
 ## Excluded Tables
 

@@ -28,7 +28,7 @@ function accessibilityChecker_loadPluginSettings(): array
 	$defaults = [
 		'enabled' => true,
 		'scheduledScans' => true,
-		'scanFrequency' => 'daily',
+		'scanFrequency' => 'weekly',
 		'lastScanDate' => null,
 		'lastScanResults' => null,
 
@@ -44,7 +44,7 @@ function accessibilityChecker_loadPluginSettings(): array
 			'missingFormLabels' => true,
 		],
 
-		'emailNotifications' => true,
+		'emailNotifications' => false,
 		'notificationEmail' => '',
 		'emailOnlyOnErrors' => true,
 		'includeWarningsInTrigger' => false,
@@ -1718,7 +1718,7 @@ function accessibilityChecker_sendNotificationEmail(array $results): void
 	}
 
 	$to = $settings['notificationEmail'] ?: accessibilityChecker_getAdminEmail();
-	$domain = $_SERVER['HTTP_HOST'] ?? 'localhost';
+	$domain = accessibilityChecker_getSiteHost();
 	$subject = "Accessibility Checker Report: {$domain}";
 
 	// Build email body
@@ -1733,11 +1733,16 @@ function accessibilityChecker_sendNotificationEmail(array $results): void
 
 	if ($hasErrors || $hasWarnings) {
 		$body .= "Action Required: Log into the CMS to view and fix accessibility issues.\n";
-		$adminUrl = \settings('adminUrl') ?? '/cmsb/';
-		$body .= "Dashboard: https://{$domain}{$adminUrl}?_pluginAction=accessibilityChecker_adminDashboard\n";
+		$body .= "Dashboard: " . \settings('adminUrl') . "?_pluginAction=accessibilityChecker_adminDashboard\n";
 	}
 
-	mail($to, $subject, $body);
+	// Send through CMS mail settings (never PHP mail())
+	\sendMessage([
+		'from'    => \settings('adminEmail'),
+		'to'      => $to,
+		'subject' => $subject,
+		'text'    => $body,
+	]);
 }
 
 /**
@@ -1747,8 +1752,18 @@ function accessibilityChecker_sendNotificationEmail(array $results): void
  */
 function accessibilityChecker_getAdminEmail(): string
 {
-	global $SETTINGS;
-	return $SETTINGS['adminEmail'] ?? 'admin@' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
+	return \settings('adminEmail') ?: 'admin@' . accessibilityChecker_getSiteHost();
+}
+
+/**
+ * Get the site's hostname (works under cron.php, where there is no HTTP_HOST)
+ *
+ * @return string Hostname, e.g. www.example.com
+ */
+function accessibilityChecker_getSiteHost(): string
+{
+	$host = parse_url((string) \settings('websiteUrl'), PHP_URL_HOST);
+	return $host ?: ($_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? 'localhost');
 }
 
 /**

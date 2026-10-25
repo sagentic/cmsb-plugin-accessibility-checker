@@ -5,6 +5,18 @@ All notable changes to the Accessibility Checker plugin will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.01] - 2026-10-24
+
+### Fixed
+- Scheduled scans and cleanup never ran from cron. They were registered below the plugin's command-line check, and `webadmin/cron.php` runs from the command line, so the jobs only appeared on the Background Tasks page. They are now registered before that check
+- Notification emails now send through the CMS mail settings (`sendMessage()`) instead of PHP `mail()`
+- The email subject and Dashboard link no longer depend on HTTP_HOST, which doesn't exist under cron. They use the CMS Website URL and Admin URL settings
+- Both tasks create their tables first if they don't exist yet, and return a summary line for the Background Tasks log
+
+### Changed
+- Scheduled scan runs at a time unique to each site between 0:00 and 4:59 (cleanup an hour later), so sites on the same server don't all scan at once
+- Default Scan Frequency is now weekly (was daily) and Email Notifications default to off (was on). Sites that saved their own settings keep them
+
 ## [1.00] - 2026-01-09
 
 ### Added
